@@ -12,14 +12,13 @@ def generate_teams_and_locations(data):
     for location in data:
         loc_name = location["location"]
         loc_billiards = location["numberOfBiljarts"]
-        loc_availability = location.get("availability", [])
-        locations[loc_name] = {"billiards": loc_billiards, "availability": loc_availability}
+        loc_unavailableDates = [datetime.strptime(date, '%Y-%m-%d') for date in location.get("unavailableDates", [])]
+        locations[loc_name] = {"billiards": loc_billiards, "unavailableDates": loc_unavailableDates}
         for team in location["teams"]:
             teams[team] = loc_name
     return teams, locations
 
 def generate_initial_schedule(teams):
-    """Generates a double round-robin schedule for the teams"""
     team_list = list(teams.keys())
     n = len(team_list)
     matches = []
@@ -29,56 +28,80 @@ def generate_initial_schedule(teams):
             matches.append((team_list[j], team_list[i]))
     return matches
 
-def assign_locations_to_matches(schedule, teams, locations):
-    """Assigns locations to matches based on teams' home locations"""
-    for i in range(len(schedule)):
-        team1, team2 = schedule[i]
-        if locations[teams[team1]]["billiards"] > 0:
-            schedule[i] = (team1, team2, teams[team1])
-            locations[teams[team1]]["billiards"] -= 1
-        elif locations[teams[team2]]["billiards"] > 0:
-            schedule[i] = (team1, team2, teams[team2])
-            locations[teams[team2]]["billiards"] -= 1
-        else:
-            schedule[i] = (team1, team2, "Unassigned")
-    return schedule
-
 def adjust_home_streaks(schedule):
-    """Ensures that no team has more than two consecutive home games"""
     home_streaks = {}
     for i in range(len(schedule)):
-        team1, team2, location = schedule[i]
+        match, _ = schedule[i]
+        team1, team2, location = match
         if location == team1:
             home_streaks[team1] = home_streaks.get(team1, 0) + 1
             home_streaks[team2] = 0
         else:
             home_streaks[team2] = home_streaks.get(team2, 0) + 1
             home_streaks[team1] = 0
-
         if home_streaks[team1] > 2:
             for j in range(i+1, len(schedule)):
-                if schedule[j][2] == team2 and home_streaks[team2] < 2:
+                future_match, _ = schedule[j]
+                if future_match[2] == team2 and home_streaks[team2] < 2:
                     schedule[i], schedule[j] = schedule[j], schedule[i]
                     home_streaks[team1] = 1
                     break
         elif home_streaks[team2] > 2:
             for j in range(i+1, len(schedule)):
-                if schedule[j][2] == team1 and home_streaks[team1] < 2:
+                future_match, _ = schedule[j]
+                if future_match[2] == team1 and home_streaks[team1] < 2:
                     schedule[i], schedule[j] = schedule[j], schedule[i]
                     home_streaks[team2] = 1
                     break
     return schedule
 
 def generate_match_dates(start_date, num_matches):
-    # generates a list of dates for the matches, one per week, skipping weeks when necessary
-    dates = []
+    match_dates = []
     current_date = start_date
     for _ in range(num_matches):
-        dates.append(current_date)
+        match_dates.append(current_date)
         current_date += timedelta(weeks=1)
-    return dates
+    return match_dates
+
+def assign_location_to_match(match, teams, locations, current_date):
+    team1, team2 = match
+    if locations[teams[team1]]["billiards"] > 0 and current_date not in locations[teams[team1]]["unavailableDates"]:
+        locations[teams[team1]]["billiards"] -= 1
+        return (team1, team2, teams[team1])
+    elif locations[teams[team2]]["billiards"] > 0 and current_date not in locations[teams[team2]]["unavailableDates"]:
+        locations[teams[team2]]["billiards"] -= 1
+        return (team1, team2, teams[team2])
+    return None
+
+def schedule_matches(start_date, data):
+    teams, locations = generate_teams_and_locations(data)
+    matches = generate_initial_schedule(teams)
+
+    current_date = start_date
+    schedule = []
+    for match in matches:
+        # If all locations are unavailable on the current date, move to the next week
+        while all(current_date in loc_data["unavailableDates"] for loc_data in locations.values()):
+            current_date += timedelta(weeks=1)
+
+        assigned = assign_location_to_match(match, teams, locations, current_date)
+        if assigned is None:
+            current_date += timedelta(weeks=1)
+            continue
+
+        schedule.append((assigned, current_date))
+        current_date += timedelta(weeks=1)
+
+    schedule = adjust_home_streaks(schedule)
+    return schedule
 
 
+# Usage
+data = load_data('teams.yml')
+start_date = datetime.strptime('2023-06-06', '%Y-%m-%d')
+schedule = schedule_matches(start_date, data)
+
+'''
 data = load_data('teams.yml')
 teams, locations = generate_teams_and_locations(data)
 schedule = generate_initial_schedule(teams)
@@ -88,5 +111,8 @@ schedule = adjust_home_streaks(schedule)
 start_date = datetime.strptime('2023-06-06', '%Y-%m-%d')  # Example start date
 match_dates = generate_match_dates(start_date, len(schedule))
 # Assign dates to matches here
+'''
+
+
 
 
