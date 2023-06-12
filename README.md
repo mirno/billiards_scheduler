@@ -1,7 +1,7 @@
 # billiards_scheduler
 Concept of a schedule creator
 # Example of the teams.yml
-'''
+````
 - location: "A"
   numberOfBiljarts: 2
   teams:
@@ -26,4 +26,4 @@ Concept of a schedule creator
     - TeamJ
     - teamK
     - TeamL
-'''
+````
