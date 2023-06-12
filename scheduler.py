@@ -19,24 +19,55 @@ def generate_teams_and_locations(data):
     return teams, locations
 
 def generate_initial_schedule(teams):
-    # this should generate a double round-robin schedule
-    # without considering any of the constraints
-    # placeholder for your code here
-    pass
+    """Generates a double round-robin schedule for the teams"""
+    team_list = list(teams.keys())
+    n = len(team_list)
+    matches = []
+    for i in range(n-1):
+        for j in range(i+1, n):
+            matches.append((team_list[i], team_list[j])) # Each team plays every other team twice
+            matches.append((team_list[j], team_list[i]))
+    return matches
 
 def assign_locations_to_matches(schedule, teams, locations):
-    # this should go through the schedule and for each match
-    # assign it to the home location of one of the teams
-    # if the location is already full or not available on that day, skip that match to a later date
-    # placeholder for your code here
-    pass
+    """Assigns locations to matches based on teams' home locations"""
+    for i in range(len(schedule)):
+        team1, team2 = schedule[i]
+        if locations[teams[team1]]["billiards"] > 0:
+            schedule[i] = (team1, team2, teams[team1])
+            locations[teams[team1]]["billiards"] -= 1
+        elif locations[teams[team2]]["billiards"] > 0:
+            schedule[i] = (team1, team2, teams[team2])
+            locations[teams[team2]]["billiards"] -= 1
+        else:
+            schedule[i] = (team1, team2, "Unassigned")
+    return schedule
 
 def adjust_home_streaks(schedule):
-    # this should go through the schedule and for each team
-    # ensure they have no more than two consecutive home games
-    # if a team has more than two consecutive home games, swap this match with another one
-    # placeholder for your code here
-    pass
+    """Ensures that no team has more than two consecutive home games"""
+    home_streaks = {}
+    for i in range(len(schedule)):
+        team1, team2, location = schedule[i]
+        if location == team1:
+            home_streaks[team1] = home_streaks.get(team1, 0) + 1
+            home_streaks[team2] = 0
+        else:
+            home_streaks[team2] = home_streaks.get(team2, 0) + 1
+            home_streaks[team1] = 0
+
+        if home_streaks[team1] > 2:
+            for j in range(i+1, len(schedule)):
+                if schedule[j][2] == team2 and home_streaks[team2] < 2:
+                    schedule[i], schedule[j] = schedule[j], schedule[i]
+                    home_streaks[team1] = 1
+                    break
+        elif home_streaks[team2] > 2:
+            for j in range(i+1, len(schedule)):
+                if schedule[j][2] == team1 and home_streaks[team1] < 2:
+                    schedule[i], schedule[j] = schedule[j], schedule[i]
+                    home_streaks[team2] = 1
+                    break
+    return schedule
 
 def generate_match_dates(start_date, num_matches):
     # generates a list of dates for the matches, one per week, skipping weeks when necessary
@@ -47,15 +78,15 @@ def generate_match_dates(start_date, num_matches):
         current_date += timedelta(weeks=1)
     return dates
 
-def main():
-    data = load_data('teams.yaml')
-    teams, locations = generate_teams_and_locations(data)
-    schedule = generate_initial_schedule(teams)
-    schedule = assign_locations_to_matches(schedule, teams, locations)
-    schedule = adjust_home_streaks(schedule)
 
-    start_date = datetime.strptime('2023-06-06', '%Y-%m-%d')  # Example start date
-    match_dates = generate_match_dates(start_date, len(schedule))
-    # Assign dates to matches here
+data = load_data('teams.yml')
+teams, locations = generate_teams_and_locations(data)
+schedule = generate_initial_schedule(teams)
+schedule = assign_locations_to_matches(schedule, teams, locations)
+schedule = adjust_home_streaks(schedule)
 
-main()
+start_date = datetime.strptime('2023-06-06', '%Y-%m-%d')  # Example start date
+match_dates = generate_match_dates(start_date, len(schedule))
+# Assign dates to matches here
+
+
